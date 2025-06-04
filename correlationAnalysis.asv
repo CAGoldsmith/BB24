@@ -1,0 +1,73 @@
+clear all
+% load("C:\Users\clari\Documents\NeuroMINT\Matlab Programs\Running Drosophibot\Trials\30-May-2023 12_02_18\robotData.mat")
+trialName = '05-Jul-2023 14_26_26';
+load(["C:\Users\clari\Documents\NeuroMINT\Matlab Programs\Running Drosophibot\Trials\" 05 "\robotData.mat"])
+
+timeVec = linspace(0,timeStep*length(goalPositionPlot),length(goalPositionPlot));
+pres_pos = dxl_present_position(1:length(goalPositionPlot),:);
+pres_load = dxl_present_load_pp(1:length(goalPositionPlot),:);
+
+goalPositionPlot = goalPositionPlot-2048;
+pres_pos = pres_pos-2048;
+goalPositionPlot = goalPositionPlot.*0.088;
+pres_pos = pres_pos.*0.088;
+goalPositionPlot = goalPositionPlot.*(pi/180);
+pres_pos = pres_pos.*(pi/180);
+
+for i=1:22
+    pres_pos(:,i) = medfilt1(pres_pos(:,i),5);
+    pres_pos_norm(:,i) = (pres_pos(:,i)-min(pres_pos(:,i)))./(max(pres_pos(:,i))-min(pres_pos(:,i)));
+    pres_load_norm(:,i) = (pres_load(:,i)-min(pres_load(:,i)))./(max(pres_load(:,i))-min(pres_load(:,i)));
+    [c(:,i),lags(:,i)] = xcorr(pres_load_norm(:,i),pres_pos_norm(:,i));
+    lags(:,i) = lags(:,i).*timeStep;
+    [~,in(i)] = max(c(:,i));
+    lagBest(i) = lags(in(i));
+    if abs(lagBest(i)) > 1
+        pres_load_norm(:,i) = (-pres_load(:,i)-min(-pres_load(:,i)))./(max(-pres_load(:,i))-min(-pres_load(:,i)));
+        [c(:,i),lags(:,i)] = xcorr(pres_load_norm(:,i),pres_pos_norm(:,i));
+        lags(:,i) = lags(:,i).*timeStep;
+        [~,in(i)] = max(c(:,i));
+        lagBest(i) = lags(in(i));
+    end
+end
+
+
+colors = [0 0.4470 0.7410;...
+    0.8500 0.3250 0.0980;...
+    0.9290 0.6940 0.1250;...
+    0.4940 0.1840 0.5560;...
+    0.4660 0.6740 0.1880;...
+    0.3010 0.7450 0.9330;...
+    0.6350 0.0780 0.1840];
+legNamesLong = {'Right Hind' 'Left Hind' 'Right Middle' 'Left Middle' 'Right Front' 'Left Front'};
+jointNames = {'FTi' 'TrF' 'CTr' 'ThC3' 'ThC1' 'ThC2'};
+figure('Renderer','painters')
+tl3 = tiledlayout(2,3,'TileSpacing','compact','Padding','tight','TileIndexing','columnmajor');
+legStartIDs = [1 4 7 10 13 18];
+actuatorNum = [3;3;3;3;5;5];
+
+for i=1:6
+    colorID = 1;
+    nexttile
+    rectangle('Position',[-1 0 2 max(max(c))],'LineStyle','none','FaceColor',[0 0 0 0.125])
+    for j=1:actuatorNum(i)
+        hold on
+        plot(lags(:,legStartIDs(i)+(j-1)),c(:,legStartIDs(i)+(j-1)),'Color',colors(colorID,:));
+        plot(lags(in(legStartIDs(i)+(j-1)),legStartIDs(i)+(j-1)),c(in(legStartIDs(i)+(j-1)),legStartIDs(i)+(j-1)),'Color',colors(colorID,:),'Marker','*');
+        ylim([0 max(max(c))])
+        colorID = colorID+1;
+    end
+    grid on
+    if i <= 2
+        ylabel('Cross-Correlation')
+    end
+    xlabel('Lag (s)')
+    title(legNamesLong{i})
+end
+legendEntries = {'FTi','','TrF','','CTr','','ThC3','','ThC1'};
+lgd = legend(legendEntries,'Orientation','horizontal');
+lgd.Layout.Tile = 'south';
+set(findall(gcf,'-property','FontSize'),'FontSize',14)
+title(tl3,'Position vs. Torque Cross-Correlation')
+subtitle(tl3,'Test')
+
